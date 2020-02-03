@@ -7,6 +7,7 @@ import subprocess  # to run the shell command for gle
 import datetime  # to print current date and time
 import os  # for watching files
 import sys  # for counting how many arguments there are
+import time  # for sleep
 
 
 def main():
@@ -14,6 +15,7 @@ def main():
     when regle [file name] is called, watch the file and re-run gle if the file is changed.
     :return: 0 if successful, 1 if not
     """
+    gle_files = None
     try:
         # get command line arguments
         parser = argparse.ArgumentParser(description='ReGLE -- Run GLE for a file every time its changed.')
@@ -35,16 +37,23 @@ def main():
 
         # run gle command on files initially
         for i in range(0, len(gle_files)):
-            last_gle[i], gle_success[i] = regle(gle_files[i], last_gle[i], gle_success[i], pdf_mode, no_gv)
+            last_gle[i], gle_success[i] = regle(gle_files[i], gle_success[i], pdf_mode, no_gv)
 
         # each second, for each file, if they haven't been GLEed then GLE them
         while True:
             for i in range(0, len(gle_files)):
                 if last_gle[i] < os.stat(gle_files[i]).st_mtime:
-                    last_gle[i], gle_success[i] = regle(gle_files[i], last_gle[i], gle_success[i], pdf_mode, no_gv)
+                    last_gle[i], gle_success[i] = regle(gle_files[i], gle_success[i], pdf_mode, no_gv)
+            time.sleep(1)
 
     except KeyboardInterrupt:
-        print('Bye...')
+        try:
+            print('Making PDFs and exiting...')
+            if gle_files is not None:
+                for i in range(0, len(gle_files)):
+                    run_gle(gle_files[i], True)
+        except KeyboardInterrupt:
+            print("OK, finishing without making PDFs...")
     except FileNotFoundError:
         print('Cant find one of the GLE files. Bye...')
     finally:
@@ -53,7 +62,7 @@ def main():
     return 0
 
 
-def regle(gle_file, last_gle, gle_success, pdf_mode, no_gv):
+def regle(gle_file, gle_success, pdf_mode, no_gv):
     gle_out = run_gle(gle_file, pdf_mode)
     gle_success_now = not gle_out
     if not no_gv:
