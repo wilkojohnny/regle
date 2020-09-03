@@ -8,6 +8,7 @@ import datetime  # to print current date and time
 import os  # for watching files
 import sys  # for counting how many arguments there are
 import time  # for sleep
+from pynput.keyboard import Listener
 
 
 def main():
@@ -22,6 +23,7 @@ def main():
         parser.add_argument("gle_file", help="Location of the GLE file to run perpetually", nargs='*')
         parser.add_argument("--pdf", action="store_true", help="run gle in PDF making mode")
         parser.add_argument("--nogv", action="store_true", help="don't run gv")
+        parser.add_argument("--nodatawatch", action="store_true", help="don't watch the data files")
 
         arguments = parser.parse_args()
         if len(sys.argv) == 1:
@@ -31,9 +33,26 @@ def main():
         gle_files = arguments.gle_file
         pdf_mode = arguments.pdf
         no_gv = arguments.nogv
+        no_data_watch = arguments.nodatawatch
 
-        last_gle = [0 for i in range(0, len(gle_files))]  # stores when the last GLEification happened
-        gle_success = [0 for i in range(0, len(gle_files))]  # stores whether the last GLE was successful
+        # read in each file too, to find data files to watch
+        data_files = []
+        data_files_last_edit = []
+        if not no_data_watch:
+            for i_gle_file, gle_file in enumerate(gle_files):
+                # open the file
+                with open(gle_file, 'r') as f:
+                    lines = f.readlines()
+                    data_files.append([data_line.split()[1] for data_line in lines if 'data' in data_line and
+                                       '!' not in data_line])
+                    data_files_last_edit.append([os.stat(data_file).st_mtime for data_file in
+                                                 data_files[i_gle_file]])
+                if len(data_files[i_gle_file]) > 0:
+                    print('In the file ' + gle_file + ', the following data files were found to watch:')
+                    [print('- ' + data_file) for data_file in data_files[i_gle_file]]
+
+        last_gle = [0 for _ in range(0, len(gle_files))]  # stores when the last GLEification happened
+        gle_success = [0 for _ in range(0, len(gle_files))]  # stores whether the last GLE was successful
 
         # run gle command on files initially
         for i in range(0, len(gle_files)):
@@ -44,6 +63,16 @@ def main():
             for i in range(0, len(gle_files)):
                 if last_gle[i] < os.stat(gle_files[i]).st_mtime:
                     last_gle[i], gle_success[i] = regle(gle_files[i], gle_success[i], pdf_mode, no_gv)
+                elif not no_data_watch:
+                    # look at the data files
+                    for i_data_file, data_file in enumerate(data_files[i]):
+                        if data_files_last_edit[i][i_data_file] < os.stat(data_file).st_mtime:
+                            print('ReGleing ' + gle_files[i] + ' as data file ' + data_file + ' changed')
+                            # regle
+                            last_gle[i], gle_success[i] = regle(gle_files[i], gle_success[i], pdf_mode, no_gv)
+                            # record all data files as being last gle'd now -- changing one changes them all
+                            data_files_last_edit[i] = [last_gle[i] for _ in data_files_last_edit[i]]
+                            break
             time.sleep(1)
 
     except KeyboardInterrupt:
