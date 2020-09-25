@@ -43,8 +43,9 @@ def main():
                 # open the file
                 with open(gle_file, 'r') as f:
                     lines = f.readlines()
-                    data_files.append([data_line.split()[1] for data_line in lines if 'data' in data_line and
-                                       '!' not in data_line])
+                    # import pdb; pdb.set_trace()
+                    data_files.append([data_line.split()[1].replace('"', '').replace("'", "") for data_line in lines \
+                                       if 'data' in data_line and '!' not in data_line])
                     data_files_last_edit.append([os.stat(data_file).st_mtime for data_file in
                                                  data_files[i_gle_file]])
                 if len(data_files[i_gle_file]) > 0:
